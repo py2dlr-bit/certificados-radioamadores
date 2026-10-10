@@ -1,0 +1,581 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Gerador e Validador de Certificados</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background: #f3f5f8;
+      color: #222;
+      margin: 0;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: auto;
+      background: white;
+      padding: 24px;
+      border-radius: 14px;
+      box-shadow: 0 4px 16px rgba(0,0,0,.08);
+    }
+
+    h1 {
+      font-size: 27px;
+      margin-top: 5px;
+    }
+
+    .descricao {
+      color: #555;
+      line-height: 1.5;
+    }
+
+    .campo {
+      margin: 16px auto;
+      text-align: left;
+      max-width: 500px;
+    }
+
+    label {
+      display: block;
+      font-weight: bold;
+      margin-bottom: 7px;
+    }
+
+    input, select, button {
+      font: inherit;
+      padding: 12px;
+      border-radius: 7px;
+    }
+
+    input, select {
+      width: 100%;
+      border: 1px solid #ccc;
+      background: white;
+    }
+
+    input[type="color"] {
+      height: 48px;
+      cursor: pointer;
+    }
+
+    input[type="range"] {
+      padding: 0;
+    }
+
+    button {
+      border: none;
+      cursor: pointer;
+      background: #174ea6;
+      color: white;
+      font-weight: bold;
+      margin: 5px;
+    }
+
+    button:hover:not(:disabled) {
+      background: #103b80;
+    }
+
+    button:disabled {
+      background: #aaa;
+      cursor: not-allowed;
+    }
+
+    .botao-validar {
+      background: #087443;
+      width: 100%;
+    }
+
+    .botao-download {
+      background: #174ea6;
+      width: 100%;
+    }
+
+    #status {
+      padding: 12px;
+      border-radius: 7px;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+
+    #status:empty {
+      display: none;
+    }
+
+    .aviso {
+      background: #fff7df;
+      color: #735313;
+      border: 1px solid #f0dda4;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .certificado {
+      margin-top: 22px;
+    }
+
+    #canvas {
+      display: block;
+      width: 100%;
+      height: auto;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      margin: 12px auto;
+      touch-action: none;
+      cursor: move;
+    }
+
+    .ajuda {
+      font-size: 13px;
+      color: #666;
+    }
+
+    footer {
+      margin-top: 24px;
+      font-size: 12px;
+      color: #777;
+    }
+  </style>
+</head>
+
+<body>
+  <main class="container">
+    <h1>Gerador de Certificados</h1>
+
+    <p class="descricao">
+      Informe seu indicativo e valide sua participação
+      antes de emitir o certificado da rodada.
+    </p>
+
+    <div class="campo">
+      <label for="indicativo">Seu indicativo:</label>
+      <input
+        type="text"
+        id="indicativo"
+        placeholder="Ex.: PY2ABC"
+        maxlength="20"
+        autocomplete="off"
+        autocapitalize="characters"
+      >
+    </div>
+
+    <div class="campo">
+      <label for="rodada">Selecione a rodada:</label>
+      <select id="rodada">
+        <!--
+          Para adicionar uma rodada, copie uma opção e altere:
+          value = código exatamente igual a participacoes.rodada no Supabase
+          texto = nome que aparecerá para o radioamador
+        -->
+        <option value="RODADA-01">Rodada 1</option>
+        <option value="RODADA-02">Rodada 2</option>
+      </select>
+      <p class="ajuda">
+        O código de cada rodada deve ser igual ao campo "rodada" no Supabase.
+      </p>
+    </div>
+
+    <button
+      type="button"
+      id="validar"
+      class="botao-validar"
+    >
+      Validar participação
+    </button>
+
+    <p id="status" role="status" aria-live="polite"></p>
+
+    <section class="certificado">
+      <h2>Personalize seu certificado</h2>
+
+      <p class="ajuda">
+        Estas opções permitem ajustar a visualização do indicativo.
+      </p>
+
+      <div class="campo">
+        <label for="fontSize">
+          Tamanho da fonte: <span id="tamanhoAtual">48</span> px
+        </label>
+        <input
+          type="range"
+          id="fontSize"
+          min="12"
+          max="100"
+          value="48"
+        >
+      </div>
+
+      <div class="campo">
+        <label for="fontColor">Cor do texto:</label>
+        <input
+          type="color"
+          id="fontColor"
+          value="#000000"
+        >
+      </div>
+
+      <canvas id="canvas" width="800" height="600"></canvas>
+
+      <p class="ajuda">
+        Arraste o indicativo sobre o certificado para posicioná-lo.
+      </p>
+
+      <button
+        type="button"
+        id="baixar"
+        class="botao-download"
+        disabled
+      >
+        Validar participação para liberar o download
+      </button>
+    </section>
+
+    <footer>
+      Sistema de validação e emissão de certificados
+    </footer>
+  </main>
+
+  <script>
+    /*
+      CONFIGURAÇÃO
+
+      Antes de utilizar, será necessário informar:
+      1. A URL do projeto Supabase.
+      2. A chave pública do projeto.
+
+      Nunca coloque a chave service_role neste arquivo.
+    */
+
+    const SUPABASE_URL =
+      "https://zgjuxnpqximidnjamlki.supabase.co";
+
+    const SUPABASE_PUBLISHABLE_KEY =
+      "sb_publishable_6G51THupIsrYqR-IN2jJnw__9RRoXsB";
+
+    const ENDPOINT_VALIDACAO =
+      SUPABASE_URL + "/functions/v1/validar-certificado";
+
+
+    // ELEMENTOS DA PÁGINA
+
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    const campoIndicativo =
+      document.getElementById("indicativo");
+
+    const campoRodada =
+      document.getElementById("rodada");
+
+    const campoFonte =
+      document.getElementById("fontSize");
+
+    const campoCor =
+      document.getElementById("fontColor");
+
+    const status =
+      document.getElementById("status");
+
+    const botaoValidar =
+      document.getElementById("validar");
+
+    const botaoBaixar =
+      document.getElementById("baixar");
+
+    const tamanhoAtual =
+      document.getElementById("tamanhoAtual");
+
+
+    // ESTADO DO CERTIFICADO
+
+    const imagem = new Image();
+    imagem.src = "certificado.jpg";
+
+    let imagemCarregada = false;
+    let autorizacaoAtual = null;
+    let arrastando = false;
+
+    let textX = canvas.width / 2;
+    let textY = canvas.height / 2;
+
+    let ultimoX = 0;
+    let ultimoY = 0;
+
+
+    // DESENHO DO CERTIFICADO
+
+    imagem.onload = () => {
+      imagemCarregada = true;
+      desenharCertificado();
+    };
+
+    imagem.onerror = () => {
+      status.textContent =
+        "Não foi possível carregar certificado.jpg. " +
+        "Coloque a imagem na mesma pasta deste HTML.";
+    };
+
+    function desenharCertificado() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (imagemCarregada) {
+        ctx.drawImage(
+          imagem, 0, 0, canvas.width, canvas.height
+        );
+      } else {
+        ctx.fillStyle = "#eeeeee";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#555555";
+        ctx.font = "20px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(
+          "Aguardando imagem certificado.jpg",
+          canvas.width / 2,
+          canvas.height / 2
+        );
+      }
+
+      const fonte = Number(campoFonte.value);
+      const indicativo =
+        campoIndicativo.value.trim().toUpperCase();
+
+      tamanhoAtual.textContent = fonte;
+
+      ctx.font = `bold ${fonte}px Arial`;
+      ctx.fillStyle = campoCor.value;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      ctx.fillText(indicativo, textX, textY);
+    }
+
+
+    // VALIDAÇÃO NO SERVIDOR
+
+    function invalidarAutorizacao() {
+      autorizacaoAtual = null;
+      botaoBaixar.disabled = true;
+      botaoBaixar.textContent =
+        "Validar participação para liberar o download";
+    }
+
+    campoIndicativo.addEventListener("input", () => {
+      invalidarAutorizacao();
+      desenharCertificado();
+    });
+
+    campoRodada.addEventListener("change", () => {
+      invalidarAutorizacao();
+    });
+
+    campoFonte.addEventListener("input", desenharCertificado);
+    campoCor.addEventListener("input", desenharCertificado);
+
+    botaoValidar.addEventListener("click", async () => {
+      invalidarAutorizacao();
+
+      const indicativo =
+        campoIndicativo.value.trim().toUpperCase();
+
+      const rodada = campoRodada.value;
+
+      if (!indicativo) {
+        status.textContent =
+          "Informe seu indicativo antes de continuar.";
+        return;
+      }
+
+      if (
+        SUPABASE_URL.includes("SEU-PROJETO") ||
+        SUPABASE_PUBLISHABLE_KEY.includes("INSIRA_SUA_CHAVE")
+      ) {
+        status.textContent =
+          "O sistema ainda precisa ser configurado com " +
+          "o projeto Supabase para consultar os participantes.";
+        return;
+      }
+
+      botaoValidar.disabled = true;
+      status.textContent =
+        "Consultando a participação. Aguarde...";
+
+      try {
+        const resposta = await fetch(ENDPOINT_VALIDACAO, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": SUPABASE_PUBLISHABLE_KEY,
+            "Authorization": "Bearer " + SUPABASE_PUBLISHABLE_KEY
+          },
+          body: JSON.stringify({
+            indicativo,
+            rodada
+          })
+        });
+
+        const resultado = await resposta.json();
+
+        if (!resposta.ok) {
+          throw new Error("Falha na consulta.");
+        }
+
+        if (resultado.autorizado === true) {
+          autorizacaoAtual = {
+            indicativo,
+            rodada
+          };
+
+          status.textContent =
+            "Participação confirmada! " +
+            "O download foi liberado.";
+
+          botaoBaixar.disabled = false;
+          botaoBaixar.textContent =
+            "Baixar certificado";
+        } else {
+          status.textContent =
+            "Participação não confirmada ou " +
+            "certificado não autorizado para esta rodada.";
+
+          invalidarAutorizacao();
+        }
+      } catch (erro) {
+        status.textContent =
+          "Não foi possível realizar a consulta. " +
+          "Verifique a conexão ou tente novamente.";
+
+        invalidarAutorizacao();
+      } finally {
+        botaoValidar.disabled = false;
+      }
+    });
+
+
+    // POSICIONAMENTO DO INDICATIVO
+    // Funciona com mouse e tela sensível ao toque.
+
+    canvas.addEventListener("pointerdown", (evento) => {
+      if (!imagemCarregada) return;
+
+      arrastando = true;
+
+      const rect = canvas.getBoundingClientRect();
+
+      ultimoX =
+        (evento.clientX - rect.left) *
+        (canvas.width / rect.width);
+
+      ultimoY =
+        (evento.clientY - rect.top) *
+        (canvas.height / rect.height);
+
+      canvas.setPointerCapture(evento.pointerId);
+    });
+
+    canvas.addEventListener("pointermove", (evento) => {
+      if (!arrastando) return;
+
+      const rect = canvas.getBoundingClientRect();
+
+      const atualX =
+        (evento.clientX - rect.left) *
+        (canvas.width / rect.width);
+
+      const atualY =
+        (evento.clientY - rect.top) *
+        (canvas.height / rect.height);
+
+      textX += atualX - ultimoX;
+      textY += atualY - ultimoY;
+
+      ultimoX = atualX;
+      ultimoY = atualY;
+
+      desenharCertificado();
+    });
+
+    function pararArraste() {
+      arrastando = false;
+    }
+
+    canvas.addEventListener("pointerup", pararArraste);
+    canvas.addEventListener("pointercancel", pararArraste);
+    canvas.addEventListener("lostpointercapture", pararArraste);
+
+
+    // DOWNLOAD DO CERTIFICADO
+
+    botaoBaixar.addEventListener("click", () => {
+      if (!autorizacaoAtual) {
+        status.textContent =
+          "Valide sua participação antes de baixar.";
+        invalidarAutorizacao();
+        return;
+      }
+
+      if (
+        autorizacaoAtual.indicativo !==
+          campoIndicativo.value.trim().toUpperCase() ||
+        autorizacaoAtual.rodada !== campoRodada.value
+      ) {
+        invalidarAutorizacao();
+        status.textContent =
+          "Os dados foram alterados. Valide novamente.";
+        return;
+      }
+
+      if (!imagemCarregada) {
+        status.textContent =
+          "A imagem do certificado não foi carregada.";
+        return;
+      }
+
+      try {
+        desenharCertificado();
+
+        const link = document.createElement("a");
+        const nomeIndicativo = autorizacaoAtual.indicativo
+          .replace(/[^A-Z0-9-]/g, "_");
+        const nomeRodada = autorizacaoAtual.rodada
+          .replace(/[^A-Z0-9-]/g, "_");
+
+        link.href = canvas.toDataURL("image/png");
+        link.download =
+          "certificado-" + nomeIndicativo + "-" + nomeRodada + ".png";
+        link.style.display = "none";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+
+        status.textContent =
+          "Download iniciado. Verifique a pasta de downloads do navegador.";
+      } catch (erro) {
+        console.error("Falha ao gerar o certificado:", erro);
+        status.textContent =
+          "Não foi possível gerar o arquivo. Verifique se certificado.jpg " +
+          "está na mesma pasta do site e tente novamente.";
+      }
+    });
+
+
+    // INICIALIZAÇÃO
+
+    desenharCertificado();
+  </script>
+</body>
+</html>
+
+
+
