@@ -517,7 +517,7 @@
 
     // DOWNLOAD DO CERTIFICADO
 
-    botaoBaixar.addEventListener("click", () => {
+    botaoBaixar.addEventListener("click", async () => {
       if (!autorizacaoAtual) {
         status.textContent =
           "Valide sua participação antes de baixar.";
@@ -545,26 +545,36 @@
       try {
         desenharCertificado();
 
-        const link = document.createElement("a");
         const nomeIndicativo = autorizacaoAtual.indicativo
           .replace(/[^A-Z0-9-]/g, "_");
         const nomeRodada = autorizacaoAtual.rodada
           .replace(/[^A-Z0-9-]/g, "_");
-
-        link.href = canvas.toDataURL("image/png");
-        link.download =
+        const nomeArquivo =
           "certificado-" + nomeIndicativo + "-" + nomeRodada + ".png";
+
+        const arquivo = await new Promise((resolve, reject) => {
+          canvas.toBlob((blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error("Não foi possível converter o certificado."));
+          }, "image/png");
+        });
+
+        const urlTemporaria = URL.createObjectURL(arquivo);
+        const link = document.createElement("a");
+        link.href = urlTemporaria;
+        link.download = nomeArquivo;
         link.style.display = "none";
         document.body.appendChild(link);
         link.click();
         link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(urlTemporaria), 1000);
 
         status.textContent =
-          "Download iniciado. Verifique a pasta de downloads do navegador.";
+          "Download iniciado: " + nomeArquivo;
       } catch (erro) {
         console.error("Falha ao gerar o certificado:", erro);
         status.textContent =
-          "Não foi possível gerar o arquivo. Verifique se certificado.jpg " +
+          "Não foi possível gerar o arquivo. Verifique se certificado.png " +
           "está na mesma pasta do site e tente novamente.";
       }
     });
