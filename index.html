@@ -301,7 +301,7 @@
     // ESTADO DO CERTIFICADO
 
     const imagem = new Image();
-    imagem.src = "certificado.jpg";
+    imagem.src = "certificado.png";
 
     let imagemCarregada = false;
     let autorizacaoAtual = null;
@@ -323,7 +323,7 @@
 
     imagem.onerror = () => {
       status.textContent =
-        "Não foi possível carregar certificado.jpg. " +
+        "Não foi possível carregar certificado.png. " +
         "Coloque a imagem na mesma pasta deste HTML.";
     };
 
@@ -341,7 +341,7 @@
         ctx.font = "20px Arial";
         ctx.textAlign = "center";
         ctx.fillText(
-          "Aguardando imagem certificado.jpg",
+          "Aguardando imagem certificado.png",
           canvas.width / 2,
           canvas.height / 2
         );
