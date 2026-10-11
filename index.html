@@ -349,8 +349,14 @@
       }
 
       const fonte = Number(campoFonte.value);
-      const indicativo =
-        campoIndicativo.value.trim().toUpperCase();
+      const dadosAutorizados =
+        autorizacaoAtual &&
+        autorizacaoAtual.indicativo ===
+          campoIndicativo.value.trim().toUpperCase() &&
+        autorizacaoAtual.rodada === campoRodada.value;
+      const indicativo = dadosAutorizados
+        ? autorizacaoAtual.indicativo
+        : "";
 
       tamanhoAtual.textContent = fonte;
 
@@ -370,6 +376,7 @@
       botaoBaixar.disabled = true;
       botaoBaixar.textContent =
         "Validar participação para liberar o download";
+      desenharCertificado();
     }
 
     campoIndicativo.addEventListener("input", () => {
@@ -437,6 +444,7 @@
             indicativo,
             rodada
           };
+          desenharCertificado();
 
           status.textContent =
             "Participação confirmada! " +
@@ -468,7 +476,7 @@
     // Funciona com mouse e tela sensível ao toque.
 
     canvas.addEventListener("pointerdown", (evento) => {
-      if (!imagemCarregada) return;
+      if (!imagemCarregada || !autorizacaoAtual) return;
 
       arrastando = true;
 
@@ -587,6 +595,5 @@
   </script>
 </body>
 </html>
-
 
 
